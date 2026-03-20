@@ -1,6 +1,23 @@
-# Boss 直聘爬虫 - 使用说明
+# Boss 直聘智能爬虫
+
+[![npm](https://img.shields.io/npm/v/@loong243/boss-scripts)](https://www.npmjs.com/package/@loong243/boss-scripts)
+[![npm](https://img.shields.io/npm/dt/@loong243/boss-scripts)](https://www.npmjs.com/package/@loong243/boss-scripts)
+
+## 安装
+
+```bash
+npm install -g @loong243/boss-scripts
+```
 
 ## 快速开始
+
+```bash
+# 抓取职位列表（自动启动 Chrome）
+boss-scripts list --query "前端开发" --city "深圳"
+
+# 补抓职位详情
+boss-scripts detail --input ./output/boss_前端开发.json
+```
 
 ### 1. 基本使用(自动启动 Chrome)
 
