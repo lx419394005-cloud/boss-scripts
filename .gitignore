@@ -1,0 +1,24 @@
+# macOS / AppleDouble
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Env
+.env
+.env.*
+
+# Playwright artifacts
+.playwright-cli/
+playwright-report/
+test-results/
+
+# Generated outputs
+output/
+jobs/

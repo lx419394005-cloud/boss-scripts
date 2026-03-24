@@ -5,7 +5,8 @@
   "type": "module",
   "bin": "./boss.js",
   "files": [
-    "*.js",
+    "boss.js",
+    "index.js",
     "cities.js",
     "model.js"
   ],

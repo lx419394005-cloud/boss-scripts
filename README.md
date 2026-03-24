@@ -140,32 +140,6 @@ bun boss.js search [选项]
 - `list`: 需要已打开 Boss 直聘页面
 - `search`: 自动打开搜索页面后抓取
 
-## 测试功能
-
-### 测试 CDP 连接
-
-```bash
-bun test-cdp.js
-```
-
-检查 CDP 连接状态,显示是否可以连接到 Chrome。
-
-### 测试自动启动逻辑
-
-```bash
-bun test-auto-start.js
-```
-
-测试自动启动功能的逻辑,不实际启动 Chrome。
-
-### 测试登录状态
-
-```bash
-bun test-login.js
-```
-
-测试登录状态检查功能,需要在 Chrome 中打开 Boss 直聘页面。
-
 ## 工作流程
 
 ### cmdList 流程
@@ -198,12 +172,7 @@ A: 可以手动启动 Chrome:
 
 ### Q: 如何确认 Chrome 是否在运行?
 
-A: 使用测试脚本:
-```bash
-bun test-cdp.js
-```
-
-或手动检查:
+A: 手动检查:
 ```bash
 lsof -i :9222
 curl http://127.0.0.1:9222/json/version
@@ -248,16 +217,10 @@ A: 脚本会自动检查登录状态,如果检测到未登录:
 2. 点击右上角"登录/注册"
 3. 完成登录后重新运行脚本
 
-也可以使用测试脚本检查登录状态:
-```bash
-bun test-login.js
-```
-
 ### Q: 什么情况下需要跳过登录检查?
 
 A: 一般不建议跳过登录检查。仅在以下情况考虑使用 `--skip-login-check`:
 - 已经确认已登录但脚本误判
-- 测试脚本功能
 - 使用代理或其他特殊网络环境
 
 ### Q: 登录状态检查是如何工作的?
@@ -268,8 +231,6 @@ A: 脚本通过以下方式检查登录状态:
 - 检查页面上的用户导航元素
 
 这些检查确保爬虫能够正常访问职位数据。
-rm -rf ~/boss-chrome-profile
-```
 
 ## 文件结构
 
@@ -278,12 +239,14 @@ rm -rf ~/boss-chrome-profile
 ├── boss.js           # 入口文件
 ├── index.js          # 主逻辑(包含自动启动功能)
 ├── model.js          # 数据模型
-├── cities.js         # 城市映射
-├── test-cdp.js       # CDP 连接测试
-└── test-auto-start.js # 自动启动功能测试
+└── cities.js         # 城市映射
 ```
 
 ## 更新日志
+
+### 2026-03-24
+- 🧹 清理仓库产物与测试/调试脚本
+- ✅ 新增 `.gitignore` 忽略 `output/`、`.playwright-cli/`、`._*` 等文件
 
 ### 2026-03-19
 - ✅ 新增自动检查 CDP 连接功能
@@ -291,7 +254,6 @@ rm -rf ~/boss-chrome-profile
 - ✅ 新增 `--no-auto-start` 参数
 - ✅ 优化 `resolveListTarget`:自动打开目标 URL
 - ✅ 修复 CDP 连接检查逻辑
-- ✅ 添加测试脚本
 - ✅ 更新使用文档
 
 ## 技术细节
