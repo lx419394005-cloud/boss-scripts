@@ -1,22 +1,42 @@
 # Boss 直聘智能爬虫
 
-> 首次启动会使用独立的 Chrome CDP Profile (`~/boss-chrome-profile`)。
-> 第一次使用时需要在这个独立浏览器里手动登录 Boss 直聘，后续会自动复用登录态。
+[![npm](https://img.shields.io/npm/v/@loong243/boss-scripts)](https://www.npmjs.com/package/@loong243/boss-scripts)
+[![npm](https://img.shields.io/npm/dm/@loong243/boss-scripts)](https://www.npmjs.com/package/@loong243/boss-scripts)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org)
+[![Chrome CDP](https://img.shields.io/badge/Chrome%20CDP-Puppeteer-blue)](https://github.com/puppeteer/puppeteer)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+
+> 🤖 **AI 友好描述**: 这是一个基于 Chrome CDP 协议的 Boss 直聘职位数据爬虫工具。通过 Puppeteer/CDP 连接已运行的 Chrome 浏览器，抓取职位列表和详情，输出结构化 JSON 数据。适合求职数据分析、招聘市场调研等场景。
+
+---
+
+## 功能特性
+
+- 🎯 **智能翻页抓取** - 自动滚动页面抓取职位列表，每页仅 1 次 API 请求
+- 🔐 **登录态复用** - 使用独立 Chrome Profile，自动复用登录 Cookie
+- 🚀 **自动启动 Chrome** - 检测到未运行则自动启动独立的 Chrome 实例
+- ✅ **登录状态校验** - 抓取前自动验证登录状态，避免无效请求
+- 📄 **详情补抓** - 支持批量补抓职位 JD 正文，支持断点续传
+- 🎨 **跨平台支持** - macOS/Linux/Windows（需配置 Chrome 路径）
+
+---
+
+## 安装
+
+```bash
+npm install -g @loong243/boss-scripts
+```
 
 ## 快速开始
 
+> ⚠️ **首次使用**: 首次启动会使用独立的 Chrome CDP Profile (`~/boss-chrome-profile`)。需要在这个独立浏览器里手动登录 Boss 直聘，后续会自动复用登录态。
+
 ```bash
-# 进入仓库目录
-cd /path/to/boss-scripts/boss
-
-# 抓取职位列表（自动启动独立 Chrome）
-node boss.js list --query "前端开发" --city "深圳"
-
-# 或使用 bun
-bun boss.js list --query "前端开发" --city "深圳"
+# 全局安装后直接使用
+boss-scripts list --query "前端开发" --city "深圳"
 
 # 补抓职位详情
-node boss.js detail --input ./output/boss_前端开发.json
+boss-scripts detail --input ./output/boss_前端开发.json
 ```
 
 ## 使用方式
