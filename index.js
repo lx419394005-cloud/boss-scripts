@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 
-import { createCdpClient } from '../../src/shared/cdp-client.js';
-import { loadJsonFile, saveJsonFile } from '../../src/shared/json-io.js';
-import { gaussianJitter, jitter, sleep, writeError, writeLine } from '../../src/shared/runtime.js';
+import { createCdpClient } from './shared/cdp-client.js';
+import { loadJsonFile, saveJsonFile } from './shared/json-io.js';
+import { gaussianJitter, jitter, sleep, writeError, writeLine } from './shared/runtime.js';
 import { resolveCity } from './cities.js';
 import { buildBossJob } from './model.js';
 
@@ -441,7 +441,7 @@ async function getResponseBodyText(client, requestId) {
   throw new Error('未能读取响应体');
 }
 
-function waitForJobList(client, timeout = 60000) {
+function waitForJobList(client, timeout = 120000) {
   return new Promise((resolve, reject) => {
     function cleanup() {
       clearTimeout(timer);

@@ -1,37 +1,52 @@
 # Boss 直聘智能爬虫
 
-[![npm](https://img.shields.io/npm/v/@loong243/boss-scripts)](https://www.npmjs.com/package/@loong243/boss-scripts)
-[![npm](https://img.shields.io/npm/dt/@loong243/boss-scripts)](https://www.npmjs.com/package/@loong243/boss-scripts)
-
-## 安装
-
-```bash
-npm install -g @loong243/boss-scripts
-```
+> 首次启动会使用独立的 Chrome CDP Profile (`~/boss-chrome-profile`)。
+> 第一次使用时需要在这个独立浏览器里手动登录 Boss 直聘，后续会自动复用登录态。
 
 ## 快速开始
 
 ```bash
-# 抓取职位列表（自动启动 Chrome）
-boss-scripts list --query "前端开发" --city "深圳"
+# 进入仓库目录
+cd /path/to/boss-scripts/boss
+
+# 抓取职位列表（自动启动独立 Chrome）
+node boss.js list --query "前端开发" --city "深圳"
+
+# 或使用 bun
+bun boss.js list --query "前端开发" --city "深圳"
 
 # 补抓职位详情
-boss-scripts detail --input ./output/boss_前端开发.json
+node boss.js detail --input ./output/boss_前端开发.json
 ```
 
-### 1. 基本使用(自动启动 Chrome)
+## 使用方式
+
+### 1. 首次使用
+
+第一次运行时,脚本会尝试启动独立的 Chrome CDP 实例。你需要在这个浏览器里完成一次 Boss 直聘登录:
+
+```bash
+# 可手动启动独立 Chrome
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=$HOME/boss-chrome-profile
+
+# 然后访问 https://www.zhipin.com 完成登录
+```
+
+完成后,后续命令会复用 `~/boss-chrome-profile` 中的 Cookie 和登录态。
+
+### 2. 基本使用(自动启动 Chrome)
 
 脚本会自动检查 Chrome 是否在运行,如果没有则自动启动:
 
 ```bash
 # 抓取职位列表
-boss-scripts list --query "前端开发" --city "深圳"
+node boss.js list --query "前端开发" --city "深圳"
 
 # 补抓职位详情
-boss-scripts detail --input ./output/boss_前端开发.json
+node boss.js detail --input ./output/boss_前端开发.json
 ```
 
-### 2. 禁用自动启动
+### 3. 禁用自动启动
 
 如果需要手动控制 Chrome,可以禁用自动启动:
 
@@ -40,16 +55,7 @@ boss-scripts detail --input ./output/boss_前端开发.json
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=$HOME/boss-chrome-profile
 
 # 然后运行脚本(禁用自动启动)
-boss-scripts list --query "前端开发" --city "深圳" --no-auto-start
-```
-
-### 3. 源码运行(bun)
-
-如果你是在仓库目录里开发/调试,也可以直接用 bun 跑源码:
-
-```bash
-cd /path/to/boss-scripts/boss
-bun boss.js list --query "前端开发" --city "深圳"
+node boss.js list --query "前端开发" --city "深圳" --no-auto-start
 ```
 
 ## 功能特性
@@ -80,6 +86,8 @@ bun boss.js list --query "前端开发" --city "深圳"
 ```bash
 boss-scripts list [选项]
 ```
+
+仓库内直接运行时,可替换为 `node boss.js list ...` 或 `bun boss.js list ...`
 
 **必填参数:**
 - `--query <关键词>` - 搜索关键词
@@ -117,6 +125,8 @@ boss-scripts list --query "React" --output ./jobs/react.json
 boss-scripts detail [选项]
 ```
 
+仓库内直接运行时,可替换为 `node boss.js detail ...` 或 `bun boss.js detail ...`
+
 **必填参数:**
 - `--input <路径>` - list 输出的 JSON 文件
 
@@ -142,6 +152,8 @@ boss-scripts detail --input ./jobs/react.json --delay 5000
 ```bash
 boss-scripts search [选项]
 ```
+
+仓库内直接运行时,可替换为 `node boss.js search ...` 或 `bun boss.js search ...`
 
 参数与 `list` 命令相同,区别在于:
 - `list`: 需要已打开 Boss 直聘页面
@@ -246,7 +258,8 @@ A: 脚本通过以下方式检查登录状态:
 ├── boss.js           # 入口文件
 ├── index.js          # 主逻辑(包含自动启动功能)
 ├── model.js          # 数据模型
-└── cities.js         # 城市映射
+├── cities.js         # 城市映射
+└── shared/           # 包内共享工具（CDP/JSON/运行时）
 ```
 
 ## 更新日志

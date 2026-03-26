@@ -8,7 +8,8 @@
     "boss.js",
     "index.js",
     "cities.js",
-    "model.js"
+    "model.js",
+    "shared"
   ],
   "keywords": [
     "boss",
@@ -20,6 +21,9 @@
   ],
   "license": "MIT",
   "author": "loong <lx419394005@gmail.com>",
+  "dependencies": {
+    "ws": "^8.19.0"
+  },
   "engines": {
     "node": ">=18"
   }
