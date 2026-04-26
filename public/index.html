@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boss 直聘 · 数据仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --card-bg: #141414;
+  --card-border: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #888888;
+  --accent: #ff4444;
+  --accent-light: #ff6666;
+  --success: #00cc66;
+  --warning: #ffaa00;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  overflow-x: hidden;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--card-border);
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.header .meta {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.header .refresh-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  border-radius: 2px;
+}
+.header .refresh-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Tab Navigation */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--card-border);
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 12px 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.stat-box {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 12px;
+  text-align: center;
+}
+.stat-box .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.stat-box .label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
+/* Source pills */
+.sources-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.source-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 6px 12px;
+  border-radius: 2px;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+.source-pill:hover {
+  border-color: var(--accent);
+}
+.source-pill.hidden {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.source-pill .checkbox {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.2s;
+}
+.source-pill .checkbox:hover {
+  border-color: var(--accent);
+}
+.source-pill .checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.source-pill .name { color: var(--accent); font-weight: 600; }
+.source-pill .count { color: var(--text-secondary); }
+.source-pill .time { color: #555; font-size: 10px; margin-left: 4px; }
+.source-pill .del {
+  margin-left: 4px;
+  color: #555;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.source-pill:hover .del {
+  opacity: 1;
+}
+.source-pill .del:hover {
+  color: var(--accent);
+}
+
+.sources-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.sources-header span {
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+/* Daily Stats */
+.daily-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.daily-stat-item {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 12px;
+  text-align: center;
+  position: relative;
+}
+.daily-stat-item .icon {
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+.daily-stat-item .value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.daily-stat-item .label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.daily-stat-item .btn-add {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background: var(--accent);
+  border: none;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.daily-stat-item:hover .btn-add {
+  opacity: 1;
+}
+.daily-stat-item .btn-add:hover {
+  background: var(--accent-light);
+}
+
+/* Main Grid */
+.main-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Side Panel */
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 14px;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card-title .value {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Chart wraps */
+.chart-wrap { position: relative; }
+.chart-wrap.small { height: 160px; }
+.chart-wrap.medium { height: 200px; }
+.chart-wrap.large { height: 320px; }
+
+/* Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.data-table th {
+  text-align: left;
+  padding: 8px 6px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  border-bottom: 1px solid var(--card-border);
+}
+.data-table td {
+  padding: 6px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.data-table tr:hover td { background: #1a1a1a; }
+.data-table tr { cursor: pointer; }
+.num { color: var(--text-secondary); font-family: "SF Mono", monospace; font-size: 10px; }
+.tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.tag-high { background: rgba(255,68,68,0.15); color: var(--accent); }
+.tag-mid { background: rgba(255,170,0,0.15); color: var(--warning); }
+.tag-low { background: rgba(0,204,102,0.15); color: var(--success); }
+
+/* Scroll container */
+.scroll-wrap {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.scroll-wrap::-webkit-scrollbar { width: 4px; }
+.scroll-wrap::-webkit-scrollbar-thumb { background: var(--card-border); }
+
+/* Skill tags */
+.skill-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.skill-tag {
+  padding: 4px 8px;
+  background: #1a1a1a;
+  border: 1px solid var(--card-border);
+  border-radius: 2px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.skill-tag.hot {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Loading */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+}
+.loading::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--success);
+  color: var(--success);
+  padding: 10px 16px;
+  border-radius: 2px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  padding: 40px;
+}
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+.empty-state h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+.empty-state p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+
+/* Search Form */
+.search-form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: 16px;
+}
+.search-form input {
+  flex: 1;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  font-size: 13px;
+  border-radius: 2px;
+  outline: none;
+}
+.search-form input:focus {
+  border-color: var(--accent);
+}
+.search-form button {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 12px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.search-form button:hover {
+  background: var(--accent-light);
+}
+.search-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Status bar */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.status-dot.loading {
+  background: var(--warning);
+  animation: pulse 1s infinite;
+}
+.status-dot.error {
+  background: var(--accent);
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Command box */
+.command-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0a0a0a;
+  border: 1px solid var(--card-border);
+  padding: 12px 16px;
+  border-radius: 2px;
+  width: 100%;
+  max-width: 500px;
+}
+.command-box code {
+  flex: 1;
+  color: var(--accent);
+  font-family: "SF Mono", Monaco, monospace;
+  font-size: 13px;
+}
+.copy-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 1024px) {
+  .workflow-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.command-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.command-item {
+  border: 1px solid var(--card-border);
+  background: #101010;
+  padding: 10px;
+}
+
+.command-item .label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.command-item code {
+  display: block;
+  color: var(--accent);
+  font-family: "SF Mono", Monaco, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.command-item .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mini-btn {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.mini-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.detail-item {
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  background: #101010;
+}
+
+.detail-item .k {
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.detail-item .v {
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.flow-list {
+  display: grid;
+  gap: 8px;
+}
+
+.flow-step {
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  background: #101010;
+}
+
+.flow-step .step-title {
+  font-size: 11px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.flow-step .step-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.muted {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.table-action {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.table-action:hover {
+  color: var(--accent);
+}
+
+.selected-row td {
+  background: rgba(255, 68, 68, 0.08);
+}
+
+.action-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.action-form textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  background: #101010;
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  font-size: 12px;
+  outline: none;
+}
+
+.action-form textarea:focus {
+  border-color: var(--accent);
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primary-btn {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background: var(--accent-light);
+}
+
+.primary-btn:disabled,
+.mini-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-result {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  background: #0d0d0d;
+}
+
+.action-result pre {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: "SF Mono", Monaco, monospace;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.jobs-table-wrap {
+  margin-top: 12px;
+}
+
+/* Greeting history */
+.greeting-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1a1a1a;
+  font-size: 11px;
+}
+.greeting-item:last-child {
+  border-bottom: none;
+}
+.greeting-item .greeting-time {
+  color: #555;
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+.greeting-item .greeting-text {
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.greeting-empty {
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 16px;
+  text-align: center;
+}
+
+/* Greeting History */
+.greeting-history-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.greeting-history-card .card-title {
+  color: #e94560;
+}
+
+.greeting-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.greeting-item:last-child {
+  border-bottom: none;
+}
+
+.greeting-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.greeting-job {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.greeting-time {
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.greeting-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.greeting-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.greeting-link:hover {
+  text-decoration: underline;
+}
+
+/* Job List Layout */
+.job-list-layout {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.job-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.job-detail-panel {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.job-detail-panel .card {
+  height: 100%;
+}
+
+/* JD Content */
+.jd-content {
+  background: #101010;
+  border: 1px solid var(--card-border);
+  padding: 14px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.jd-content::-webkit-scrollbar { width: 4px; }
+.jd-content::-webkit-scrollbar-thumb { background: var(--card-border); }
+
+.jd-content .jd-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.jd-content .jd-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #ccc;
+}
+
+.jd-empty {
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 20px;
+  text-align: center;
+}
+
+@media (max-width: 1024px) {
+  .job-list-layout {
+    grid-template-columns: 1fr;
+  }
+  .job-detail-panel {
+    position: static;
+    max-height: none;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Dashboard</h1>
+      <div class="status-bar">
+        <div class="status-dot loading" id="statusDot"></div>
+        <div class="meta" id="headerMeta">加载中...</div>
+      </div>
+    </div>
+    <button class="refresh-btn" onclick="refreshAll()">↻ 刷新数据</button>
+  </div>
+
+  <!-- Tab 导航 -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('jobs')">职位数据</button>
+    <button class="tab-btn" onclick="switchTab('list')">职位列表</button>
+    <button class="tab-btn" onclick="switchTab('meta')">今日看板</button>
+  </div>
+
+  <!-- 空状态 / 搜索表单 -->
+  <div class="card" id="emptyState" style="display:none;">
+    <div class="empty-state">
+      <div class="icon">📊</div>
+      <h2>暂无数据</h2>
+      <p>开始抓取 Boss 直聘职位数据</p>
+      <form class="search-form" onsubmit="startSearch(event)">
+        <input type="text" id="searchQuery" placeholder="输入职位关键词，如：前端开发" required>
+        <input type="text" id="searchCity" placeholder="城市，如：深圳" value="深圳">
+        <button type="submit" id="searchBtn">开始抓取</button>
+      </form>
+      <p style="font-size:11px; color:#666;">或在终端运行：<code style="background:#1a1a1a;padding:2px 6px;border-radius:2px;">boss list --query "前端开发" --city "深圳"</code></p>
+    </div>
+  </div>
+
+  <!-- Tab 1: 职位数据 -->
+  <div id="tabJobs" class="tab-content active">
+    <!-- 数据源筛选 -->
+    <div class="sources-bar" id="sourcesBar"></div>
+    <div class="sources-bar" id="sourcesHeader" style="display:none;">
+      <div class="sources-header">
+        <span>数据源</span>
+        <button class="refresh-btn" onclick="toggleAllSources(true)" style="padding: 4px 8px; font-size: 10px;">全选</button>
+        <button class="refresh-btn" onclick="toggleAllSources(false)" style="padding: 4px 8px; font-size: 10px;">全不选</button>
+      </div>
+    </div>
+
+    <div class="stats-bar" id="statsBar">
+      <div class="loading">加载数据</div>
+    </div>
+
+    <div class="main-grid" id="mainGrid" style="display:none;">
+      <!-- Left Panel -->
+      <div class="side-panel">
+        <div class="card">
+          <div class="card-title">经验要求 <span class="value" id="expTop">-</span></div>
+          <div class="chart-wrap small"><canvas id="expChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">学历要求</div>
+          <div class="chart-wrap small"><canvas id="eduChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">公司阶段</div>
+          <div class="chart-wrap small"><canvas id="stageChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Center -->
+      <div class="side-panel">
+        <div class="card">
+          <div class="card-title">薪资分布</div>
+          <div class="chart-wrap medium"><canvas id="salaryChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">薪资 vs 经验</div>
+          <div class="chart-wrap medium"><canvas id="scatterChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Right Panel -->
+      <div class="side-panel">
+        <div class="card">
+          <div class="card-title">公司规模</div>
+          <div class="chart-wrap small"><canvas id="sizeChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">热门技能</div>
+          <div class="skill-cloud" id="skillCloud"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tab 2: 职位列表 -->
+  <div id="tabList" class="tab-content">
+    <div class="job-list-layout">
+      <!-- 左侧：职位列表 -->
+      <div class="job-list-panel">
+        <div class="card">
+          <div class="card-title">高薪职位 <span class="value" id="positionCount">-</span></div>
+          <div class="scroll-wrap">
+            <table class="data-table" id="positionTable"></table>
+          </div>
+        </div>
+        <div class="card jobs-table-wrap">
+          <div class="card-title">职位清单 <span class="value" id="jobsExplorerCount">0</span></div>
+          <div class="scroll-wrap">
+            <table class="data-table" id="jobsExplorerTable"></table>
+          </div>
+        </div>
+      </div>
+      <!-- 右侧：JD 详情 -->
+      <div class="job-detail-panel" id="jobDetailPanel">
+        <div class="card">
+          <div class="card-title">
+            JD 详情 <span class="value" id="detailJobBadge">-</span>
+          </div>
+          <div class="muted" id="detailJobSummary">点击左侧职位查看 JD 详情</div>
+          <div class="detail-list" id="jobDetailList"></div>
+          <div class="jd-content" id="jdContent" style="margin-top:12px;"></div>
+          <div class="action-form" style="margin-top:12px;">
+            <textarea id="greetingInput" placeholder="在这里手工编写打招呼内容，再点击发送。"></textarea>
+            <div class="inline-actions">
+              <button class="primary-btn" id="runJdBtn" onclick="runSelectedJobAction('jd-open')">读取 JD</button>
+              <button class="primary-btn" id="runSendBtn" onclick="runSelectedJobAction('send-chat')">发送招呼</button>
+              <button class="mini-btn" id="runUnreadBtn" onclick="runChatUnread()">查看未读</button>
+            </div>
+          </div>
+          <div class="action-result" id="actionResult">
+            <div class="muted">执行结果会显示在这里。</div>
+            <pre id="actionOutput"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: 今日看板 -->
+  <div id="tabMeta" class="tab-content">
+    <!-- 招呼历史记录 -->
+    <div class="card greeting-history-card" id="greetingHistoryCard" style="display:none; margin-bottom: 12px;">
+      <div class="card-title">
+        今日招呼 <span class="value" id="greetingCount">0</span>
+      </div>
+      <div id="greetingHistoryList"></div>
+    </div>
+
+    <!-- 今日统计 -->
+    <div class="daily-stats" id="dailyStats">
+      <div class="daily-stat-item">
+        <div class="icon">👀</div>
+        <div class="value" id="statViewed">0</div>
+        <div class="label">今日查看</div>
+        <button class="btn-add" onclick="addStat('viewed')">+</button>
+      </div>
+      <div class="daily-stat-item">
+        <div class="icon">📤</div>
+        <div class="value" id="statApplied">0</div>
+        <div class="label">今日投递</div>
+        <button class="btn-add" onclick="addStat('applied')">+</button>
+      </div>
+      <div class="daily-stat-item">
+        <div class="icon">💬</div>
+        <div class="value" id="statReplied">0</div>
+        <div class="label">今日回复</div>
+        <button class="btn-add" onclick="addStat('replied')">+</button>
+      </div>
+      <div class="daily-stat-item">
+        <div class="icon">👋</div>
+        <div class="value" id="statGreeted">0</div>
+        <div class="label">今日打招呼</div>
+        <button class="btn-add" onclick="addStat('greeted')">+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">数据已更新</div>
+
+<script>
+// 全局状态
+let apiData = null;
+let charts = {};
+let isLoading = false;
+let hiddenSources = JSON.parse(localStorage.getItem('hiddenSources') || '[]');
+let selectedJob = null;
+let currentTopJobs = [];
+let currentFilteredJobs = [];
+let actionRunning = false;
+
+// 加载隐藏状态
+function loadHiddenSources() {
+  hiddenSources = JSON.parse(localStorage.getItem('hiddenSources') || '[]');
+}
+
+// 保存隐藏状态
+function saveHiddenSources() {
+  localStorage.setItem('hiddenSources', JSON.stringify(hiddenSources));
+}
+
+// 切换数据源显示
+function toggleSource(file) {
+  const idx = hiddenSources.indexOf(file);
+  if (idx >= 0) {
+    hiddenSources.splice(idx, 1);
+  } else {
+    hiddenSources.push(file);
+  }
+  saveHiddenSources();
+  renderSources(apiData?.sources || []);
+  renderAllWithFilter();
+}
+
+// 全选/全不选
+function toggleAllSources(show) {
+  if (show) {
+    hiddenSources = [];
+  } else {
+    hiddenSources = (apiData?.sources || []).map(s => s.file);
+  }
+  saveHiddenSources();
+  renderSources(apiData?.sources || []);
+  renderAllWithFilter();
+}
+
+// 获取过滤后的数据
+function getFilteredData() {
+  if (!apiData) return { jobs: [], sources: [] };
+  const filteredJobs = apiData.jobs.filter(j => !hiddenSources.includes(j._sourceFile || j._source || j.source));
+  const filteredSources = apiData.sources.filter(s => !hiddenSources.includes(s.file));
+  return { jobs: filteredJobs, sources: filteredSources };
+}
+
+// 状态指示
+function setStatus(state, message) {
+  const dot = document.getElementById('statusDot');
+  const meta = document.getElementById('headerMeta');
+  dot.className = 'status-dot';
+  if (state === 'loading') {
+    dot.classList.add('loading');
+    meta.textContent = message || '加载中...';
+  } else if (state === 'error') {
+    dot.classList.add('error');
+    meta.textContent = message || '错误';
+  } else {
+    meta.textContent = message || '正常';
+  }
+}
+
+function setActionResult(title, output = '') {
+  const container = document.getElementById('actionResult');
+  const pre = document.getElementById('actionOutput');
+  container.querySelector('.muted').textContent = title;
+  pre.textContent = output;
+}
+
+function setActionButtonsDisabled(disabled) {
+  ['runJdBtn', 'runSendBtn', 'runUnreadBtn'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+}
+
+async function callActionApi(payload) {
+  const resp = await fetch('/api/actions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await resp.json();
+  if (!resp.ok || result.ok === false) {
+    throw new Error(result.stderr || result.stdout || `动作执行失败 (${resp.status})`);
+  }
+  return result;
+}
+
+// 加载数据
+async function loadData() {
+  if (isLoading) return;
+  isLoading = true;
+  loadHiddenSources();
+  setStatus('loading', '正在加载数据...');
+  
+  try {
+    const resp = await fetch('/api/jobs');
+    if (!resp.ok) throw new Error('API 请求失败');
+    apiData = await resp.json();
+    
+    // 检查是否有数据
+    const filtered = getFilteredData();
+    const hasData = filtered.jobs.length > 0;
+    
+    if (apiData.jobs && apiData.jobs.length > 0) {
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('mainGrid').style.display = '';
+      renderSources(apiData.sources);
+      renderAllWithFilter();
+      showToast();
+      const totalCount = filtered.jobs.length;
+      const totalSources = filtered.sources.length;
+      setStatus('ok', `${totalCount} 条数据 (已选 ${totalSources}/${apiData.sources.length} 个数据源)`);
+    } else {
+      document.getElementById('emptyState').style.display = '';
+      document.getElementById('mainGrid').style.display = 'none';
+      document.getElementById('statsBar').innerHTML = '';
+      document.getElementById('sourcesBar').innerHTML = '';
+      document.getElementById('sourcesHeader').style.display = 'none';
+      setStatus('ok', '暂无数据');
+    }
+  } catch (error) {
+    console.error('加载失败:', error);
+    document.getElementById('emptyState').style.display = '';
+    document.getElementById('mainGrid').style.display = 'none';
+    document.getElementById('statsBar').innerHTML = `
+      <div class="stat-box" style="grid-column: 1/-1;">
+        <div class="value" style="color: var(--accent);">连接失败</div>
+        <div class="label">${error.message}</div>
+      </div>
+    `;
+    document.getElementById('sourcesBar').innerHTML = '';
+    document.getElementById('sourcesHeader').style.display = 'none';
+    setStatus('error', '服务器未运行');
+  } finally {
+    isLoading = false;
+  }
+}
+
+// 加载今日统计
+async function loadStats() {
+  try {
+    const resp = await fetch('/api/stats');
+    if (!resp.ok) throw new Error('获取统计失败');
+    const stats = await resp.json();
+    
+    document.getElementById('statViewed').textContent = stats.viewed || 0;
+    document.getElementById('statApplied').textContent = stats.applied || 0;
+    document.getElementById('statReplied').textContent = stats.replied || 0;
+    document.getElementById('statGreeted').textContent = stats.greeted || 0;
+  } catch (error) {
+    console.error('加载统计失败:', error);
+  }
+}
+
+// 添加统计
+async function addStat(type) {
+  try {
+    const resp = await fetch('/api/stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, count: 1 })
+    });
+    
+    if (!resp.ok) throw new Error('更新统计失败');
+    const stats = await resp.json();
+    
+    document.getElementById('statViewed').textContent = stats.viewed || 0;
+    document.getElementById('statApplied').textContent = stats.applied || 0;
+    document.getElementById('statReplied').textContent = stats.replied || 0;
+    document.getElementById('statGreeted').textContent = stats.greeted || 0;
+    
+    // 如果是打招呼类型，刷新招呼历史
+    if (type === 'greeted') {
+      loadGreetingHistory();
+    }
+    
+    showToastMsg('已更新', 'success');
+  } catch (error) {
+    console.error('更新统计失败:', error);
+    showToastMsg('更新失败', 'error');
+  }
+}
+
+// 加载招呼历史
+async function loadGreetingHistory() {
+  try {
+    const resp = await fetch('/api/greetings');
+    if (!resp.ok) throw new Error('获取招呼历史失败');
+    const greetings = await resp.json();
+    
+    const card = document.getElementById('greetingHistoryCard');
+    const count = document.getElementById('greetingCount');
+    const list = document.getElementById('greetingHistoryList');
+    
+    if (!greetings || greetings.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+    
+    card.style.display = '';
+    count.textContent = greetings.length;
+    
+    // 按时间倒序排列
+    const sortedGreetings = [...greetings].sort((a, b) => new Date(b.time) - new Date(a.time));
+    
+    list.innerHTML = sortedGreetings.map(g => {
+      const time = new Date(g.time);
+      const timeStr = time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      const jobInfo = g.jobTitle || g.company ? `${g.jobTitle || ''} · ${g.company || ''}` : '未知职位';
+      return `
+        <div class="greeting-item">
+          <div class="greeting-header">
+            <div class="greeting-job">${escapeHtml(jobInfo)}</div>
+            <div class="greeting-time">${timeStr}</div>
+          </div>
+          <div class="greeting-text">${escapeHtml(g.message)}</div>
+          ${g.jobUrl ? `<a class="greeting-link" href="${g.jobUrl}" target="_blank">查看职位 ↗</a>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('加载招呼历史失败:', error);
+  }
+}
+
+// 切换招呼历史显示
+let greetingHistoryExpanded = false;
+function toggleGreetingHistory() {
+  greetingHistoryExpanded = !greetingHistoryExpanded;
+  const list = document.getElementById('greetingHistoryList');
+  const btn = document.getElementById('toggleGreetingBtn');
+  list.style.display = greetingHistoryExpanded ? '' : 'none';
+  btn.textContent = greetingHistoryExpanded ? '收起' : '展开';
+}
+
+// HTML 转义
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 渲染数据源列表
+function renderSources(sources) {
+  const container = document.getElementById('sourcesBar');
+  if (!sources || sources.length === 0) {
+    container.innerHTML = '';
+    document.getElementById('sourcesHeader').style.display = 'none';
+    return;
+  }
+  
+  document.getElementById('sourcesHeader').style.display = '';
+  
+  container.innerHTML = sources.map(s => {
+    const isHidden = hiddenSources.includes(s.file);
+    return `
+      <div class="source-pill ${isHidden ? 'hidden' : ''}" data-file="${s.file}">
+        <div class="checkbox ${isHidden ? '' : 'checked'}" onclick="toggleSource('${s.file}')">
+          ${isHidden ? '' : '✓'}
+        </div>
+        <span class="name">${s.query}</span>
+        <span class="count">${s.city} · ${s.count}条</span>
+        <span class="time">${s.updatedAtRel}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// 开始搜索
+function startSearch(e) {
+  e.preventDefault();
+  runSearchNow();
+}
+
+async function runSearchNow() {
+  if (actionRunning) return;
+  const query = document.getElementById('searchQuery')?.value.trim();
+  const city = document.getElementById('searchCity')?.value.trim() || '深圳';
+  if (!query) {
+    showToastMsg('请先输入职位关键词', 'error');
+    return;
+  }
+
+  actionRunning = true;
+  setActionButtonsDisabled(true);
+  setActionResult(`正在抓取 ${query} · ${city} ...`);
+
+  try {
+    const result = await callActionApi({ action: 'list', query, city });
+    setActionResult(`抓取完成: ${query} · ${city}`, [result.stdout, result.stderr].filter(Boolean).join('\n'));
+    await loadData();
+    showToastMsg('抓取完成');
+  } catch (error) {
+    setActionResult('抓取失败', error.message);
+    showToastMsg('抓取失败', 'error');
+  } finally {
+    actionRunning = false;
+    setActionButtonsDisabled(false);
+  }
+}
+
+// Toast 提示
+function showToastMsg(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.borderColor = type === 'error' ? 'var(--accent)' : type === 'info' ? 'var(--warning)' : 'var(--success)';
+  toast.style.color = type === 'error' ? 'var(--accent)' : type === 'info' ? 'var(--warning)' : 'var(--success)';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// Tab 切换
+function switchTab(tabName) {
+  // 更新 Tab 按钮状态
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const btnText = btn.textContent;
+    const isActive = 
+      (tabName === 'jobs' && btnText.includes('职位数据')) ||
+      (tabName === 'list' && btnText.includes('职位列表')) ||
+      (tabName === 'meta' && btnText.includes('今日看板'));
+    btn.classList.toggle('active', isActive);
+  });
+  
+  // 更新 Tab 内容显示
+  document.getElementById('tabJobs').classList.toggle('active', tabName === 'jobs');
+  document.getElementById('tabList').classList.toggle('active', tabName === 'list');
+  document.getElementById('tabMeta').classList.toggle('active', tabName === 'meta');
+  
+  // 切换到职位数据 tab 时渲染数据源筛选
+  if (tabName === 'jobs' && apiData) {
+    renderSources(apiData.sources);
+    renderAllWithFilter();
+  }
+  
+  // 切换到元数据 tab 时刷新数据
+  if (tabName === 'meta') {
+    loadStats();
+    loadGreetingHistory();
+  }
+  
+  // 切换到职位列表 tab 时渲染列表
+  if (tabName === 'list') {
+    renderJobListPanel();
+  }
+}
+
+// 刷新所有数据
+function refreshAll() {
+  loadData();
+  loadStats();
+  loadGreetingHistory();
+}
+
+// 渲染职位列表面板
+function renderJobListPanel() {
+  const { jobs } = getFilteredData();
+  
+  if (jobs.length === 0) {
+    document.getElementById('positionTable').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:20px;">暂无数据</td></tr>';
+    document.getElementById('jobsExplorerTable').innerHTML = '';
+    document.getElementById('jobsExplorerCount').textContent = '0';
+    return;
+  }
+  
+  // 高薪职位 TOP 10
+  const topJobs = [...jobs]
+    .map(j => ({ ...j, _salaryParsed: parseSalary(j.salary) }))
+    .filter(j => j._salaryParsed)
+    .sort((a, b) => b._salaryParsed.mid - a._salaryParsed.mid)
+    .slice(0, 10);
+  
+  currentTopJobs = topJobs;
+  currentFilteredJobs = jobs.slice();
+  
+  document.getElementById('positionCount').textContent = topJobs.length;
+  
+  // 渲染高薪职位
+  renderTopJobs(topJobs);
+  
+  // 渲染职位清单
+  renderJobsExplorer(jobs);
+}
+
+// 渲染高薪职位
+function renderTopJobs(jobs) {
+  document.getElementById('positionTable').innerHTML = `
+    <tr><th>#</th><th>职位</th><th>薪资</th><th>经验</th><th>采集</th><th></th></tr>
+    ${jobs.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:20px;">暂无数据</td></tr>' : jobs.map((j, i) => {
+      const salary = parseSalary(j.salary);
+      const tag = salary?.mid >= 50 ? 'tag-high' : salary?.mid >= 30 ? 'tag-mid' : 'tag-low';
+      const selected = selectedJob && selectedJob.job_url === j.job_url ? 'selected-row' : '';
+      const fetchTime = j.fetched_at ? formatFetchTime(j.fetched_at) : '-';
+      return `
+        <tr class="${selected}" onclick="selectTopJob(${i})">
+          <td class="num">${String(i + 1).padStart(2, '0')}</td>
+          <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.title}</td>
+          <td><span class="tag ${tag}">${j.salary}</span></td>
+          <td class="num">${j.experience || '-'}</td>
+          <td class="num" style="color:#666;">${fetchTime}</td>
+          <td><a class="table-action" href="${j.job_url}" target="_blank" onclick="event.stopPropagation()">↗</a></td>
+        </tr>
+      `;
+    }).join('')}
+  `;
+}
+
+function renderJobsExplorer(jobs) {
+  const rows = jobs.slice(0, 80);
+  document.getElementById('jobsExplorerCount').textContent = rows.length;
+  document.getElementById('jobsExplorerTable').innerHTML = `
+    <tr><th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>采集</th><th></th></tr>
+    ${rows.map((j, i) => {
+      const selected = selectedJob && selectedJob.job_url === j.job_url ? 'selected-row' : '';
+      const fetchTime = j.fetched_at ? formatFetchTime(j.fetched_at) : '-';
+      return `
+        <tr class="${selected}" onclick="selectJobFromExplorer(${i})">
+          <td class="num">${String(i + 1).padStart(2, '0')}</td>
+          <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.title}</td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.company || '-'}</td>
+          <td><span class="tag tag-low">${j.salary || '-'}</span></td>
+          <td class="num">${[j.city, j.district].filter(Boolean).join(' ') || '-'}</td>
+          <td class="num" style="color:#666;">${fetchTime}</td>
+          <td><a class="table-action" href="${j.job_url}" target="_blank" onclick="event.stopPropagation()">↗</a></td>
+        </tr>
+      `;
+    }).join('')}
+  `;
+}
+
+// 渲染所有（使用过滤数据）
+function renderAllWithFilter() {
+  const { jobs, sources } = getFilteredData();
+  
+  if (jobs.length === 0) {
+    document.getElementById('statsBar').innerHTML = `
+      <div class="stat-box" style="grid-column: 1/-1;">
+        <div class="value" style="color: var(--accent);">已隐藏所有数据</div>
+        <div class="label">请点击数据源复选框显示</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // 重新分析过滤后的数据
+  const analysis = analyzeJobs(jobs);
+  
+  // Header - 只显示激活的数据源
+  const activeSources = sources.filter(s => !hiddenSources.includes(s.file));
+  const updatedAt = activeSources[0]?.updatedAt 
+    ? new Date(activeSources[0].updatedAt).toLocaleString('zh-CN')
+    : '未知';
+  document.getElementById('headerMeta').textContent = 
+    `${activeSources.map(s => s.query).join(' + ')} | 更新于 ${updatedAt}`;
+  
+  // Stats
+  const s = analysis.summary;
+  document.getElementById('statsBar').innerHTML = [
+    { l: '职位总数', v: s.totalJobs },
+    { l: '最高薪资', v: s.max + 'K' },
+    { l: '平均薪资', v: s.mean + 'K' },
+    { l: '中位薪资', v: s.median + 'K' },
+    { l: '数据来源', v: activeSources.length },
+  ].map(x => `
+    <div class="stat-box">
+      <div class="value">${x.v}</div>
+      <div class="label">${x.l}</div>
+    </div>
+  `).join('');
+  
+  // Experience top
+  const expTop = Object.entries(analysis.expDist).sort((a,b) => b[1] - a[1])[0];
+  document.getElementById('expTop').textContent = expTop ? expTop[0] : '-';
+  
+  // Render charts
+  renderExpChart(analysis.expDist);
+  renderEduChart(analysis.degreeDist);
+  renderStageChart(analysis.stageDist);
+  renderSalaryChart(analysis.salaryDist);
+  renderSizeChart(analysis.sizeDist);
+  renderScatterChart(jobs);
+  renderSkills(analysis.topSkills);
+}
+
+// 分析职位数据
+function analyzeJobs(jobs) {
+  // 薪资分析
+  const salaries = jobs.map(j => parseSalary(j.salary)).filter(Boolean);
+  const mids = salaries.map(s => s.mid).sort((a, b) => a - b);
+  
+  const mean = mids.length > 0 ? mids.reduce((a, b) => a + b, 0) / mids.length : 0;
+  const median = mids[Math.floor(mids.length / 2)] || 0;
+  const max = salaries.length > 0 ? Math.max(...salaries.map(s => s.high)) : 0;
+  
+  // 薪资分布
+  const salaryDist = { '<15K': 0, '15-20K': 0, '20-30K': 0, '30-50K': 0, '50-80K': 0, '80K+': 0 };
+  salaries.forEach(s => {
+    if (s.low < 15) salaryDist['<15K']++;
+    else if (s.low < 20) salaryDist['15-20K']++;
+    else if (s.low < 30) salaryDist['20-30K']++;
+    else if (s.low < 50) salaryDist['30-50K']++;
+    else if (s.low < 80) salaryDist['50-80K']++;
+    else salaryDist['80K+']++;
+  });
+  
+  // 经验分布
+  const expDist = {};
+  jobs.forEach(j => {
+    const exp = j.experience || '不限';
+    expDist[exp] = (expDist[exp] || 0) + 1;
+  });
+  
+  // 学历分布
+  const degreeDist = {};
+  jobs.forEach(j => {
+    const deg = j.degree || '不限';
+    degreeDist[deg] = (degreeDist[deg] || 0) + 1;
+  });
+  
+  // 公司规模分布
+  const sizeDist = {};
+  jobs.forEach(j => {
+    const size = j.company_size || '未知';
+    sizeDist[size] = (sizeDist[size] || 0) + 1;
+  });
+  
+  // 公司阶段分布
+  const stageDist = {};
+  jobs.forEach(j => {
+    const stage = j.company_stage || '未知';
+    stageDist[stage] = (stageDist[stage] || 0) + 1;
+  });
+  
+  // 技能词云
+  const skillCount = {};
+  jobs.forEach(j => {
+    (j.skills || []).forEach(s => {
+      if (s && s.trim().length >= 2) {
+        skillCount[s.trim()] = (skillCount[s.trim()] || 0) + 1;
+      }
+    });
+  });
+  const topSkills = Object.entries(skillCount).sort((a, b) => b[1] - a[1]).slice(0, 20);
+  
+  // 高薪职位 TOP 10
+  const topJobs = [...jobs]
+    .map(j => ({ ...j, _salaryParsed: parseSalary(j.salary) }))
+    .filter(j => j._salaryParsed)
+    .sort((a, b) => b._salaryParsed.mid - a._salaryParsed.mid)
+    .slice(0, 10);
+  
+  return {
+    summary: { totalJobs: jobs.length, sourcesCount: new Set(jobs.map(j => j._source)).size, mean: Math.round(mean * 10) / 10, median: Math.round(median * 10) / 10, max, min: 0, outliers: 0 },
+    salaryDist, expDist, degreeDist, sizeDist, stageDist, topSkills,
+    topJobs,
+  };
+}
+
+// 薪资分布
+function renderSalaryChart(dist) {
+  const labels = Object.keys(dist);
+  const data = Object.values(dist);
+  const colors = ['#00cc66', '#44cc88', '#ffaa00', '#ff6666', '#ff4444', '#ff2222'];
+  
+  if (charts.salary) charts.salary.destroy();
+  charts.salary = new Chart(document.getElementById('salaryChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors.slice(0, data.length),
+        borderRadius: 2,
+        barPercentage: 0.7
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#1a1a1a' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+// 经验分布
+function renderExpChart(dist) {
+  const labels = Object.keys(dist);
+  const data = Object.values(dist);
+  const colors = ['#ff4444', '#ff6666', '#ff8888', '#ffaaaa', '#ffcccc'];
+  
+  if (charts.exp) charts.exp.destroy();
+  charts.exp = new Chart(document.getElementById('expChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { position: 'right', labels: { padding: 6, usePointStyle: true, font: { size: 9 } } }
+      },
+      cutout: '60%'
+    }
+  });
+}
+
+// 学历分布
+function renderEduChart(dist) {
+  const labels = Object.keys(dist);
+  const data = Object.values(dist);
+  const colors = ['#ff4444', '#ff8888', '#ffcccc', '#aaaaaa'];
+  
+  if (charts.edu) charts.edu.destroy();
+  charts.edu = new Chart(document.getElementById('eduChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      cutout: '60%'
+    }
+  });
+}
+
+// 公司阶段
+function renderStageChart(dist) {
+  const labels = Object.keys(dist);
+  const data = Object.values(dist);
+  const colors = ['#00cc66', '#ffaa00', '#ff4444', '#ff6666', '#888888', '#666666'];
+  
+  if (charts.stage) charts.stage.destroy();
+  charts.stage = new Chart(document.getElementById('stageChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      cutout: '60%'
+    }
+  });
+}
+
+// 公司规模
+function renderSizeChart(dist) {
+  const labels = Object.keys(dist);
+  const data = Object.values(dist);
+  const colors = ['#ff4444', '#ff8888', '#ffcccc', '#888888'];
+  
+  if (charts.size) charts.size.destroy();
+  charts.size = new Chart(document.getElementById('sizeChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      cutout: '60%'
+    }
+  });
+}
+
+// 散点图
+function renderScatterChart(jobs) {
+  const points = jobs
+    .filter(j => j.salary && j.experience && !j.experience.includes('不限'))
+    .map(j => {
+      const salary = parseSalary(j.salary);
+      const exp = parseExp(j.experience);
+      if (!salary || !exp || exp.mid === 0) return null;
+      return { x: exp.mid, y: salary.mid, title: j.title, company: j.company };
+    })
+    .filter(Boolean);
+  
+  if (charts.scatter) charts.scatter.destroy();
+  charts.scatter = new Chart(document.getElementById('scatterChart'), {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: '职位',
+        data: points,
+        backgroundColor: '#ff4444',
+        pointRadius: 4,
+        pointHoverRadius: 7
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => `${c.raw.title} | ${c.raw.company} | ${c.raw.y}K`
+          }
+        }
+      },
+      scales: {
+        x: { 
+          title: { display: true, text: '经验(年)', color: '#666' },
+          grid: { color: '#1a1a1a' }
+        },
+        y: { 
+          title: { display: true, text: '薪资(K)', color: '#666' },
+          grid: { color: '#1a1a1a' }
+        }
+      }
+    }
+  });
+}
+
+function parseSalary(s) {
+  if (!s) return null;
+  const m = s.match(/(\d+)-(\d+)K/);
+  if (m) return { low: +m[1], high: +m[2], mid: (+m[1] + +m[2]) / 2 };
+  const d = s.match(/(\d+)-(\d+)元\/天/);
+  if (d) {
+    const l = +d[1] * 21.75 / 1000;
+    const h = +d[2] * 21.75 / 1000;
+    return { low: l, high: h, mid: (l + h) / 2 };
+  }
+  return null;
+}
+
+function parseExp(e) {
+  if (!e) return null;
+  const m = e.match(/(\d+)-(\d+)/);
+  if (m) return { low: +m[1], high: +m[2], mid: (+m[1] + +m[2]) / 2 };
+  const m2 = e.match(/(\d+)/);
+  return m2 ? { low: +m2[1], high: +m2[1], mid: +m2[1] } : null;
+}
+
+// 格式化采集时间（相对时间）
+function formatFetchTime(isoString) {
+  if (!isoString) return '-';
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffMins < 1) return '刚刚';
+  if (diffMins < 60) return `${diffMins}分钟前`;
+  if (diffHours < 24) return `${diffHours}小时前`;
+  if (diffDays < 7) return `${diffDays}天前`;
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+}
+
+// 技能
+function renderSkills(skills) {
+  document.getElementById('skillCloud').innerHTML = skills
+    .slice(0, 15)
+    .map(([name, count], i) => `
+      <span class="skill-tag${i < 5 ? ' hot' : ''}">${name} ${count}</span>
+    `).join('');
+}
+
+function shellEscapeDoubleQuotes(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToastMsg('命令已复制！');
+  }).catch(() => {
+    showToastMsg('复制失败', 'error');
+  });
+}
+
+function selectTopJob(index) {
+  const job = currentTopJobs[index];
+  if (!job) return;
+  renderWorkflowPanel(job);
+  // 如果当前不在职位列表 tab，切换过去
+  if (!document.getElementById('tabList').classList.contains('active')) {
+    switchTab('list');
+  }
+}
+
+function selectJobFromExplorer(index) {
+  const job = currentFilteredJobs[index];
+  if (!job) return;
+  renderWorkflowPanel(job);
+  // 如果当前不在职位列表 tab，切换过去
+  if (!document.getElementById('tabList').classList.contains('active')) {
+    switchTab('list');
+  }
+}
+
+async function runSelectedJobAction(action) {
+  if (actionRunning) return;
+  if (!selectedJob) {
+    showToastMsg('请先选中一个职位', 'error');
+    return;
+  }
+
+  const payload = { action };
+  if (action === 'jd-open') {
+    payload.url = selectedJob.job_url;
+  }
+  if (action === 'send-chat') {
+    const message = document.getElementById('greetingInput').value.trim();
+    if (!message) {
+      showToastMsg('请先填写招呼内容', 'error');
+      return;
+    }
+    payload.message = message;
+    payload.timeout = 60000;
+    // 附加职位信息
+    payload.jobTitle = selectedJob.title || null;
+    payload.company = selectedJob.company || null;
+    payload.jobUrl = selectedJob.job_url || null;
+  }
+
+  actionRunning = true;
+  setActionButtonsDisabled(true);
+  setActionResult(action === 'jd-open' ? '正在读取 JD ...' : '正在发送招呼 ...');
+
+  try {
+    const result = await callActionApi(payload);
+    setActionResult(action === 'jd-open' ? 'JD 已读取' : '招呼已发送', [result.stdout, result.stderr].filter(Boolean).join('\n'));
+    if (action === 'jd-open') {
+      await addStat('viewed');
+      await loadData();
+      // 读取 JD 后，重新渲染 JD 详情面板
+      renderWorkflowPanel(selectedJob);
+    }
+    if (action === 'send-chat') {
+      await addStat('greeted');
+      await loadGreetingHistory();
+    }
+    showToastMsg(action === 'jd-open' ? 'JD 已读取' : '招呼已发送');
+  } catch (error) {
+    setActionResult(action === 'jd-open' ? 'JD 读取失败' : '发送失败', error.message);
+    showToastMsg(action === 'jd-open' ? 'JD 读取失败' : '发送失败', 'error');
+  } finally {
+    actionRunning = false;
+    setActionButtonsDisabled(false);
+  }
+}
+
+async function runChatUnread() {
+  if (actionRunning) return;
+  actionRunning = true;
+  setActionButtonsDisabled(true);
+  setActionResult('正在读取未读消息 ...');
+
+  try {
+    const result = await callActionApi({ action: 'chat-unread', limit: 10 });
+    setActionResult('未读消息', [result.stdout, result.stderr].filter(Boolean).join('\n'));
+    showToastMsg('未读消息已更新');
+  } catch (error) {
+    setActionResult('读取未读失败', error.message);
+    showToastMsg('读取未读失败', 'error');
+  } finally {
+    actionRunning = false;
+    setActionButtonsDisabled(false);
+  }
+}
+
+function renderWorkflowPanel(job) {
+  selectedJob = job;
+  
+  // 更新职位列表面板的选中状态
+  renderTopJobs(currentTopJobs);
+  renderJobsExplorer(currentFilteredJobs);
+  
+  // 更新 JD 详情面板
+  const badge = document.getElementById('detailJobBadge');
+  const summary = document.getElementById('detailJobSummary');
+  const detailList = document.getElementById('jobDetailList');
+  const jdContent = document.getElementById('jdContent');
+  const greetingInput = document.getElementById('greetingInput');
+
+  if (!job) {
+    badge.textContent = '-';
+    summary.textContent = '点击左侧职位查看 JD 详情';
+    summary.style.display = '';
+    detailList.innerHTML = '';
+    jdContent.innerHTML = '';
+    if (greetingInput) greetingInput.value = '';
+    return;
+  }
+
+  const greetingTemplate = `您好，我关注到贵司 ${job.title} 岗位，想先进一步了解岗位情况，方便沟通一下吗？`;
+
+  badge.textContent = job.salary || '已选择';
+  summary.style.display = 'none';
+  detailList.innerHTML = [
+    ['公司', job.company],
+    ['职位', job.title],
+    ['薪资', job.salary || '-'],
+    ['经验', job.experience || '-'],
+    ['学历', job.degree || '-'],
+    ['城市', [job.city, job.district].filter(Boolean).join(' ') || '-'],
+    ['Boss', job.boss_name || '-'],
+    ['阶段', job.company_stage || '-'],
+  ].map(([k, v]) => `
+    <div class="detail-item">
+      <div class="k">${k}</div>
+      <div class="v">${v || '-'}</div>
+    </div>
+  `).join('');
+
+  // 显示 JD 内容
+  if (job.jd) {
+    jdContent.innerHTML = `
+      <div class="jd-label">职位描述</div>
+      <div class="jd-text">${escapeHtml(job.jd)}</div>
+    `;
+  } else {
+    jdContent.innerHTML = `
+      <div class="jd-empty">
+        <p>暂无 JD 内容</p>
+        <p style="margin-top:8px;font-size:10px;">点击「读取 JD」按钮抓取职位详情</p>
+      </div>
+    `;
+  }
+
+  if (greetingInput) {
+    greetingInput.value = greetingTemplate;
+  }
+}
+
+// Toast
+function showToast() {
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// 初始化
+Chart.defaults.color = '#888';
+Chart.defaults.borderColor = '#2a2a2a';
+
+loadData();
+loadStats();
+loadGreetingHistory();
+
+// 定时刷新
+setInterval(() => {
+  refreshAll();
+}, 60000);
+</script>
+</body>
+</html>

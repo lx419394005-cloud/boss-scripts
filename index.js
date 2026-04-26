@@ -16,6 +16,8 @@ boss-scripts - Boss直聘智能爬虫
   boss-scripts list   [选项]   抓取职位列表，结果存为JSON到output/（快，每页仅1次API请求）
   boss-scripts search [选项]   自动新开搜索页后抓列表（无现成Boss页面时用）
   boss-scripts detail [选项]   补抓职位详情JD（慢，每条1次API请求）
+  boss-scripts jd-open [选项]   打开单个职位详情页并返回JD（保持标签页打开）
+  boss-scripts chat-unread [选项] 读取消息页未读Tab中的Boss消息预览
 
 通用选项:
   --cdp-port <端口>    Chrome调试端口，默认9222
@@ -37,10 +39,25 @@ detail 选项:
   --output <路径>     输出文件，默认覆盖input
   --delay  <ms>       每条请求间隔，默认3000ms
 
+jd-open 选项:
+  --url    <链接>     职位详情页链接（必填）
+
+chat-unread 选项:
+  --limit  <N>       返回前 N 条未读消息，默认 10
+
+send-chat 选项:
+  --message <文本>    聊天消息内容（必填）
+  --timeout <ms>      等待聊天窗口超时，默认30000ms
+  --no-auto-chat      不自动点击「立即沟通」，假设聊天窗口已打开
+
 示例:
   boss-scripts list   --query "前端开发" --city "深圳" --page 5
   boss-scripts search --query "AI应用"  --count 100 --slow
   boss-scripts detail --input ./output/boss_前端开发.json
+  boss-scripts jd-open --url "https://www.zhipin.com/job_detail/xxx.html"
+  boss-scripts chat-unread --limit 5
+  boss-scripts send-chat --message "您好，我对AI Agent工程师岗位很感兴趣..."
+  boss-scripts send-chat --message "您好..." --timeout 60000
 `.trim();
 
 export function parseArgs(argv) {
@@ -72,6 +89,21 @@ export function parseArgs(argv) {
     } else if (current === '--input') {
       opts.input = resolve(process.cwd(), next);
       i++;
+    } else if (current === '--url') {
+      opts.url = next;
+      i++;
+    } else if (current === '--job-id') {
+      opts.jobId = next;
+      i++;
+    } else if (current === '--message') {
+      opts.message = next;
+      i++;
+    } else if (current === '--lid') {
+      opts.lid = next;
+      i++;
+    } else if (current === '--security-id') {
+      opts.securityId = next;
+      i++;
     } else if (current === '--cdp-port') {
       opts.cdpPort = parseInt(next, 10);
       i++;
@@ -83,6 +115,14 @@ export function parseArgs(argv) {
       opts.autoStartChrome = false;
     } else if (current === '--skip-login-check') {
       opts.skipLoginCheck = true;
+    } else if (current === '--no-auto-chat') {
+      opts.noAutoChat = true;
+    } else if (current === '--timeout') {
+      opts.timeout = parseInt(next, 10);
+      i++;
+    } else if (current === '--limit') {
+      opts.limit = parseInt(next, 10);
+      i++;
     }
   }
 
@@ -91,6 +131,9 @@ export function parseArgs(argv) {
 
 export const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const CHROME_PROFILE = homedir() + '/boss-chrome-profile';
+export const MIN_BOSS_ACCESS_INTERVAL_MS = 10000;
+
+let lastBossAccessAt = 0;
 
 export async function checkCdpConnection(cdpPort) {
   try {
@@ -231,6 +274,17 @@ async function openTarget(cdpPort, url) {
   return response.json();
 }
 
+export async function throttleBossAccess(minInterval = MIN_BOSS_ACCESS_INTERVAL_MS) {
+  const now = Date.now();
+  const waitMs = Math.max(0, lastBossAccessAt + minInterval - now);
+
+  if (waitMs > 0) {
+    await sleep(waitMs);
+  }
+
+  lastBossAccessAt = Date.now();
+}
+
 export function buildBossSearchUrl(query, cityCode) {
   return `https://www.zhipin.com/web/geek/jobs?query=${encodeURIComponent(query)}&city=${cityCode}`;
 }
@@ -247,6 +301,39 @@ export function buildBossDetailUrl(job) {
   return `https://www.zhipin.com/wapi/zpgeek/job/detail.json?${params.toString()}`;
 }
 
+export function buildBossJobFromDetailUrl(inputUrl) {
+  const parsed = new URL(inputUrl);
+  if (!parsed.hostname.includes('zhipin.com')) {
+    throw new Error('仅支持 zhipin.com 的职位详情链接');
+  }
+
+  const match = parsed.pathname.match(/\/job_detail\/([^./?]+)\.html$/);
+  if (!match?.[1]) {
+    throw new Error('无法从链接中解析职位 ID');
+  }
+
+  return {
+    id: match[1],
+    security_id: parsed.searchParams.get('securityId') || '',
+    lid: parsed.searchParams.get('lid') || '',
+    job_url: parsed.toString(),
+    title: '',
+    company: '',
+  };
+}
+
+export function extractBossDetailSeedFromScript(scriptText = '') {
+  const pick = (pattern) => scriptText.match(pattern)?.[1] || '';
+
+  return {
+    id: pick(/job_id:\s*'([^']+)'/),
+    security_id: pick(/securityId:\s*'([^']+)'/),
+    title: pick(/job_name:\s*'([^']+)'/),
+    company: pick(/company:\s*'([^']+)'/),
+    lid: pick(/lid:\s*'([^']+)'/),
+  };
+}
+
 export function shouldFetchBossDetail(job) {
   return Boolean(job?.id) && (job.jd === null || job.jd === '');
 }
@@ -258,6 +345,82 @@ export function extractBossDetailPayload(json) {
   const retryable = code === 37 || (code === 0 && !jd);
 
   return { code, message, jd, retryable };
+}
+
+export async function readBossDetailSeedFromPage(client) {
+  await throttleBossAccess();
+
+  const result = await client.send('Runtime.evaluate', {
+    expression: `
+      (() => {
+        const fromWindow = window._jobInfo || {};
+        const scriptText = Array.from(document.scripts)
+          .map((script) => script.textContent || '')
+          .find((text) => text.includes('var _jobInfo')) || '';
+
+        return {
+          id: fromWindow.job_id || '',
+          security_id: fromWindow.securityId || '',
+          title: fromWindow.job_name || '',
+          company: fromWindow.company || '',
+          lid: fromWindow.lid || '',
+          scriptText,
+          job_url: location.href
+        };
+      })()
+    `,
+    returnByValue: true,
+  });
+
+  const value = result.result?.value ?? {};
+  const fallback = extractBossDetailSeedFromScript(value.scriptText || '');
+
+  return {
+    id: value.id || fallback.id || '',
+    security_id: value.security_id || fallback.security_id || '',
+    title: value.title || fallback.title || '',
+    company: value.company || fallback.company || '',
+    lid: value.lid || fallback.lid || '',
+    job_url: value.job_url || '',
+  };
+}
+
+export function parseUnreadChatItem(text, name = '', message = '') {
+  const lines = String(text || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let unreadCount = 0;
+  if (/^\d+$/.test(lines[0] || '')) {
+    unreadCount = parseInt(lines.shift(), 10);
+  }
+
+  const time = lines.shift() || '';
+  const header = lines.shift() || '';
+  const normalizedMessage = message || lines.join(' ').trim();
+  const companyAndTitle = name && header.startsWith(name) ? header.slice(name.length).trim() : header;
+
+  return {
+    unread_count: unreadCount,
+    time,
+    boss_name: name || header,
+    company_and_title: companyAndTitle,
+    message: normalizedMessage,
+  };
+}
+
+export function mapChatStoreFriendToUnreadItem(friend) {
+  return {
+    unread_count: Number(friend?.unreadCount || 0),
+    time: friend?.lastTS ? new Date(friend.lastTS).toLocaleString('zh-CN', { hour12: false }) : '',
+    boss_name: friend?.name || '',
+    company_and_title: [friend?.brandName, friend?.title].filter(Boolean).join(' '),
+    message: friend?.lastText || '',
+    job_name: friend?.jobName || '',
+    encrypt_job_id: friend?.encryptJobId || '',
+    security_id: friend?.securityId || '',
+  };
 }
 
 export function mergeBossJob(existing, incoming) {
@@ -342,6 +505,10 @@ export async function resolveListTarget({
 async function cdpFetch(client, url, verbose = false) {
   if (verbose) writeLine(`  [fetch] ${url}`);
 
+  if (url.includes('zhipin.com')) {
+    await throttleBossAccess();
+  }
+
   const result = await client.send('Runtime.evaluate', {
     expression: `
       (async () => {
@@ -372,11 +539,16 @@ async function cdpFetch(client, url, verbose = false) {
 async function navigateToBossPage(client, url, waitMs = 2500, verbose = false) {
   if (!url) return;
   if (verbose) writeLine(`  [navigate] ${url}`);
+  if (url.includes('zhipin.com')) {
+    await throttleBossAccess();
+  }
   await client.send('Page.navigate', { url });
   await sleep(waitMs);
 }
 
 export async function injectBossPageActivity(client, waitMs = 1600) {
+  await throttleBossAccess();
+
   const result = await client.send('Runtime.evaluate', {
     expression: `
       (async () => {
@@ -498,6 +670,8 @@ export function estimateBossScrollRounds({ targetCount, existingCount = 0, batch
 }
 
 export async function injectBossScroll(client, waitMs = 2000) {
+  await throttleBossAccess();
+
   const result = await client.send('Runtime.evaluate', {
     expression: `
       (async () => {
@@ -818,6 +992,525 @@ export async function cmdDetail(opts) {
   writeLine(`\n✅ detail 完成！补抓 ${done} 条 → ${output}`);
 }
 
+export async function cmdJdOpen(opts) {
+  if (!opts.url) {
+    writeError('❌ 缺少 --url 参数');
+    process.exit(1);
+  }
+
+  let job;
+  try {
+    job = buildBossJobFromDetailUrl(opts.url);
+  } catch (error) {
+    writeError(`❌ URL 无效: ${error.message}`);
+    process.exit(1);
+  }
+
+  await ensureChromeReady(opts.cdpPort, opts.autoStartChrome ?? true);
+
+  let target;
+  try {
+    target = await findTarget(opts.cdpPort);
+  } catch (error) {
+    target = await openTarget(opts.cdpPort, job.job_url);
+  }
+
+  writeLine(`✓ 连接 Tab: ${target.url}`);
+
+  const client = createCdpClient(target.webSocketDebuggerUrl);
+  await client.send('Network.enable');
+  await client.send('Page.enable');
+
+  if (!opts.skipLoginCheck) {
+    await ensureLogin(client);
+  } else {
+    writeLine('⚠️  已跳过登录状态检查');
+  }
+
+  let detail = null;
+
+  try {
+    await navigateToBossPage(client, job.job_url, gaussianJitter(2200, 500, 1800), opts.verbose);
+    const pageSeed = await readBossDetailSeedFromPage(client);
+    const requestJob = {
+      ...job,
+      ...pageSeed,
+      id: pageSeed.id || job.id,
+      security_id: pageSeed.security_id || job.security_id,
+      lid: pageSeed.lid || job.lid,
+      job_url: pageSeed.job_url || job.job_url,
+      title: pageSeed.title || job.title,
+      company: pageSeed.company || job.company,
+    };
+    const json = await cdpFetch(client, buildBossDetailUrl(requestJob), opts.verbose);
+    detail = extractBossDetailPayload(json);
+  } finally {
+    await client.close();
+  }
+
+  if (!detail?.jd) {
+    writeError(`❌ 未获取到 JD${detail ? `: code=${detail.code} message=${detail.message || 'empty'}` : ''}`);
+    process.exit(1);
+  }
+
+  writeLine('\n=== JD START ===\n');
+  writeLine(detail.jd);
+  writeLine('\n=== JD END ===');
+}
+
+
+
+export async function cmdSendChat(opts) {
+  if (!opts.message) {
+    writeError('❌ 缺少 --message 参数');
+    process.exit(1);
+  }
+
+  const message = opts.message;
+  const timeout = opts.timeout || 30000;
+
+  writeLine(`\n准备发送聊天消息:`);
+  writeLine(`  消息: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+  writeLine(`\n`);
+
+  // 连接已有的 CDP session，不打开新页面
+  await ensureChromeReady(opts.cdpPort, opts.autoStartChrome ?? true);
+  const target = await findTarget(opts.cdpPort);
+  writeLine(`✓ 连接 Tab: ${target.url}`);
+
+  const client = createCdpClient(target.webSocketDebuggerUrl);
+  await client.send('Page.enable');
+
+  let success = false;
+  let errorMessage = null;
+
+  try {
+    const getChatState = async () => {
+      const result = await client.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            var href = location.href;
+            var isFullscreen = href.indexOf('/web/geek/chat') !== -1;
+            var chatInput = document.querySelector('div.chat-input');
+            var sendBtn = document.querySelector('button.btn-send');
+            var startChatBtn = document.querySelector('a.btn-startchat');
+
+            function rectOf(el) {
+              if (!el) return null;
+              var rect = el.getBoundingClientRect();
+              return { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) };
+            }
+
+            function visible(el) {
+              if (!el) return false;
+              var rect = el.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0 && rect.x >= 0 && rect.y >= 0;
+            }
+
+            return {
+              href: href,
+              isFullscreen: isFullscreen,
+              hasInput: !!chatInput,
+              inputVisible: visible(chatInput),
+              inputClass: chatInput ? chatInput.className : '',
+              inputRect: rectOf(chatInput),
+              hasSendButton: !!sendBtn,
+              sendButtonEnabled: !!(sendBtn && !sendBtn.disabled && !String(sendBtn.className || '').includes('disabled')),
+              hasStartChatButton: !!startChatBtn,
+              startChatVisible: visible(startChatBtn)
+            };
+          })()
+        `,
+        returnByValue: true,
+      });
+
+      return result.result?.value || {};
+    };
+
+    const waitForFullscreenNavigation = async (waitTimeout) => {
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < waitTimeout) {
+        const state = await getChatState();
+        if (state.isFullscreen) {
+          return state;
+        }
+        await sleep(gaussianJitter(350, 120, 180));
+      }
+
+      return null;
+    };
+
+    const waitForModalInput = async (waitTimeout) => {
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < waitTimeout) {
+        const state = await getChatState();
+        if (state.hasInput) {
+          return state;
+        }
+        await sleep(gaussianJitter(500, 150, 300));
+      }
+
+      return null;
+    };
+
+    const dismissNonFullscreenChat = async () => {
+      const result = await client.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            var selectors = [
+              '.dialog-wrap .icon-close',
+              '.dialog-wrap .btn-close',
+              '.dialog-container .icon-close',
+              '.dialog-container .btn-close',
+              '.ui-dialog .icon-close',
+              '.ui-dialog .btn-close',
+              '.boss-popup__close',
+              '.chat-dialog__close',
+              '.close'
+            ];
+
+            for (var i = 0; i < selectors.length; i++) {
+              var el = document.querySelector(selectors[i]);
+              if (!el) continue;
+              var rect = el.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) {
+                el.click();
+                return { dismissed: true, selector: selectors[i] };
+              }
+            }
+
+            document.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'Escape',
+              code: 'Escape',
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true
+            }));
+
+            return { dismissed: false, selector: 'Escape' };
+          })()
+        `,
+        returnByValue: true,
+      });
+
+      return result.result?.value || { dismissed: false, selector: '' };
+    };
+
+    const initialState = await getChatState();
+
+    if (initialState.hasInput) {
+      writeLine(`✓ 找到输入框: ${initialState.inputClass} | y=${initialState.inputRect?.y}`);
+      writeLine(initialState.isFullscreen ? '✓ 当前为全屏聊天页' : '✓ 当前为页内聊天窗口');
+    } else {
+      writeLine('输入框未找到');
+    }
+
+    if (!initialState.isFullscreen) {
+      if (initialState.hasInput) {
+        const dismissResult = await dismissNonFullscreenChat();
+        writeLine(`↺ 当前不是全屏聊天页，先退出再重试 (${dismissResult.selector})`);
+        await sleep(gaussianJitter(700, 220, 320));
+      }
+
+      let fullscreenState = null;
+
+      for (let openAttempt = 1; openAttempt <= 2; openAttempt++) {
+        writeLine(openAttempt === 1 ? '聊天窗口未打开，点击「立即沟通」按钮...' : 'URL 未跳转到聊天页，重新点击「立即沟通」按钮...');
+        await sleep(gaussianJitter(800, 300, 500));
+
+        const clickResult = await client.send('Runtime.evaluate', {
+          expression: `
+            (function() {
+              var btns = document.querySelectorAll('a.btn-startchat');
+              var visibleBtns = [];
+              for (var i = 0; i < btns.length; i++) {
+                var rect = btns[i].getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0 && rect.x >= 0 && rect.y >= 0) {
+                  visibleBtns.push({ index: i, el: btns[i], ka: btns[i].getAttribute('ka'), rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }, text: btns[i].innerText.trim() });
+                }
+              }
+              if (visibleBtns.length >= 1) {
+                visibleBtns[0].el.click();
+                return { clicked: true, ka: visibleBtns[0].ka, index: visibleBtns[0].index, position: visibleBtns[0].rect, text: visibleBtns[0].text, total: visibleBtns.length };
+              }
+              return { clicked: false, reason: 'no visible buttons', count: visibleBtns.length };
+            })()
+          `,
+          returnByValue: true,
+        });
+
+        if (!clickResult.result?.value?.clicked) {
+          throw new Error('未找到「立即沟通」按钮');
+        }
+
+        writeLine(`✓ 已点击「立即沟通」按钮 (ka=${clickResult.result?.value?.ka})`);
+        await sleep(gaussianJitter(1200, 400, 800));
+
+        fullscreenState = await waitForFullscreenNavigation(Math.min(timeout, 8000));
+        if (fullscreenState) {
+          writeLine('✓ 已跳转到全屏聊天页');
+          break;
+        }
+      }
+
+      if (!fullscreenState) {
+        throw new Error('点击沟通后 URL 未跳转到聊天页');
+      }
+    } else {
+      writeLine('✓ 当前已在全屏聊天页');
+    }
+
+    // 高斯抖动延迟
+    await sleep(gaussianJitter(600, 200, 400));
+
+    // 查找并定位聊天输入框
+    const inputResult = await client.send('Runtime.evaluate', {
+      expression: `
+        (function() {
+          var chatInput = document.querySelector('div.chat-input');
+          if (!chatInput) return { found: false };
+          
+          var rect = chatInput.getBoundingClientRect();
+          return {
+            found: true,
+            tag: chatInput.tagName,
+            class: chatInput.className,
+            rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
+          };
+        })()
+      `,
+      returnByValue: true,
+    });
+
+    if (!inputResult.result?.value?.found) {
+      throw new Error('聊天输入框不可用');
+    }
+
+    writeLine('✓ 找到输入框: ' + inputResult.result?.value?.class + ' | y=' + inputResult.result?.value?.rect?.y);
+
+    // 输入消息
+    writeLine('输入消息...');
+    const inputMsgResult = await client.send('Runtime.evaluate', {
+      expression: `
+        (function(msg) {
+          var chatInput = document.querySelector('div.chat-input');
+          if (!chatInput) return false;
+
+          // 清空现有内容
+          chatInput.innerHTML = '';
+          chatInput.focus();
+          
+          // 插入新文本
+          var textNode = document.createTextNode(msg);
+          chatInput.appendChild(textNode);
+          
+          // 触发事件
+          chatInput.dispatchEvent(new Event('focus', { bubbles: true }));
+          chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+          chatInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+          return chatInput.innerText;
+        })(${JSON.stringify(message)})
+      `,
+      returnByValue: true,
+    });
+
+    writeLine('输入结果: ' + inputMsgResult.result?.value);
+    await sleep(gaussianJitter(400, 150, 200));
+
+    writeLine('发送消息...');
+    await sleep(gaussianJitter(300, 100, 200));
+
+    const sendResult = await client.send('Runtime.evaluate', {
+      expression: `
+        (function() {
+          var chatInput = document.querySelector('div.chat-input');
+          if (!chatInput) return { ok: false, method: 'none' };
+
+          chatInput.focus();
+
+          var sendBtn = document.querySelector('button.btn-send');
+          if (sendBtn && !sendBtn.disabled && String(sendBtn.className || '').indexOf('disabled') === -1) {
+            sendBtn.click();
+            return { ok: true, method: 'button' };
+          }
+
+          var event = new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+          });
+          chatInput.dispatchEvent(event);
+
+          return { ok: true, method: 'enter' };
+        })()
+      `,
+      returnByValue: true,
+    });
+
+    writeLine('发送动作: ' + (sendResult.result?.value?.ok ? sendResult.result?.value?.method : '失败'));
+
+    // 等待发送
+    await sleep(gaussianJitter(1500, 500, 800));
+
+    // 确认发送成功
+    const sendCheck = await client.send('Runtime.evaluate', {
+      expression: `
+        (function() {
+          var chatInput = document.querySelector('div.chat-input');
+          if (!chatInput) return { found: false };
+          
+          var text = chatInput.innerText || '';
+          return { 
+            found: true, 
+            cleared: text.trim() === '' || text.length < 5,
+            text: text.substring(0, 50)
+          };
+        })()
+      `,
+      returnByValue: true,
+    });
+
+    if (sendCheck.result?.value?.found && sendCheck.result?.value?.cleared) {
+      success = true;
+      writeLine('✓ 消息发送成功');
+    } else if (sendCheck.result?.value?.found) {
+      success = true;
+      writeLine('✓ 消息已发送（输入框内容: "' + sendCheck.result?.value?.text + '"）');
+    } else {
+      errorMessage = '无法确认发送状态';
+      writeError('⚠ ' + errorMessage);
+    }
+
+  } catch (error) {
+    errorMessage = error.message;
+    writeError(`✗ 发送失败: ${errorMessage}`);
+  } finally {
+    await client.close();
+  }
+
+  if (success) {
+    writeLine(`\n✅ send-chat 完成！`);
+  } else {
+    writeLine(`\n❌ send-chat 失败: ${errorMessage}`);
+    process.exit(1);
+  }
+}
+
+export async function cmdChatUnread(opts) {
+  const limit = Number.isFinite(opts.limit) && opts.limit > 0 ? opts.limit : 10;
+
+  await ensureChromeReady(opts.cdpPort, opts.autoStartChrome ?? true);
+  const target = await findTarget(opts.cdpPort);
+  writeLine(`✓ 连接 Tab: ${target.url}`);
+
+  const client = createCdpClient(target.webSocketDebuggerUrl);
+  await client.send('Page.enable');
+
+  try {
+    const tabResult = await client.send('Runtime.evaluate', {
+      expression: `
+        (function() {
+          var candidates = Array.from(document.querySelectorAll('li, a, button, span')).filter(function(el) {
+            return (el.innerText || '').trim().indexOf('未读') === 0;
+          });
+
+          for (var i = 0; i < candidates.length; i++) {
+            var el = candidates[i];
+            var rect = el.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
+            el.click();
+            return { clicked: true, text: (el.innerText || '').trim(), className: el.className || '' };
+          }
+
+          return { clicked: false };
+        })()
+      `,
+      returnByValue: true,
+    });
+
+    if (!tabResult.result?.value?.clicked) {
+      throw new Error('未找到「未读」tab');
+    }
+
+    writeLine(`✓ 已切换到 ${tabResult.result?.value?.text}`);
+    await sleep(gaussianJitter(1200, 300, 400));
+
+    const listResult = await client.send('Runtime.evaluate', {
+      expression: `
+        (function(limit) {
+          function clean(text) {
+            return String(text || '').replace(/\\s+/g, ' ').trim();
+          }
+
+          var selectedTab = Array.from(document.querySelectorAll('li.selected, li.cur, .selected, .cur'))
+            .map(function(el) { return clean(el.innerText); })
+            .find(function(text) { return text.indexOf('未读') === 0; }) || '';
+
+          var store = window.chatStore || {};
+          var infos = store.friendInfos || {};
+          var friends = Object.values(infos)
+            .filter(function(item) { return Number(item && item.unreadCount) > 0; })
+            .sort(function(a, b) { return Number(b.lastTS || 0) - Number(a.lastTS || 0); })
+            .slice(0, limit);
+
+          if (friends.length > 0) {
+            return { selectedTab: selectedTab, source: 'chatStore', items: friends };
+          }
+
+          function visible(el) {
+            if (!el) return false;
+            var rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          }
+
+          var items = Array.from(document.querySelectorAll('.user-list li, .chat-content li'))
+            .filter(visible)
+            .map(function(li) {
+              var nameEl = li.querySelector('.name-text');
+              var msgEl = li.querySelector('.last-msg-text, .last-msg');
+              return {
+                text: (li.innerText || '').trim(),
+                name: clean(nameEl && nameEl.innerText),
+                message: clean(msgEl && msgEl.innerText)
+              };
+            })
+            .filter(function(item) { return item.text; })
+            .slice(0, limit);
+
+          return { selectedTab: selectedTab, source: 'dom', items: items };
+        })(${JSON.stringify(limit)})
+      `,
+      returnByValue: true,
+    });
+
+    const payload = listResult.result?.value || { selectedTab: '', items: [] };
+    const parsedItems = payload.source === 'chatStore'
+      ? payload.items.map((item) => mapChatStoreFriendToUnreadItem(item))
+      : payload.items.map((item) => parseUnreadChatItem(item.text, item.name, item.message));
+
+    writeLine(`\n未读列表: ${payload.selectedTab || '未读'}`);
+    writeLine(`来源: ${payload.source || 'unknown'}`);
+    writeLine(`命中 ${parsedItems.length} 条\n`);
+
+    parsedItems.forEach((item, index) => {
+      writeLine(`[${index + 1}] ${item.boss_name} | ${item.company_and_title || '未知身份'} | ${item.time || '未知时间'} | 未读 ${item.unread_count}`);
+      if (item.job_name) {
+        writeLine(`    岗位: ${item.job_name}`);
+      }
+      writeLine(`    ${item.message || '(无消息预览)'}`);
+    });
+  } finally {
+    await client.close();
+  }
+}
+
 export async function main(argv = process.argv) {
   const opts = parseArgs(argv);
 
@@ -828,6 +1521,9 @@ export async function main(argv = process.argv) {
 
   if (opts.cmd === 'list' || opts.cmd === 'search') await cmdList(opts);
   else if (opts.cmd === 'detail') await cmdDetail(opts);
+  else if (opts.cmd === 'jd-open') await cmdJdOpen(opts);
+  else if (opts.cmd === 'chat-unread') await cmdChatUnread(opts);
+  else if (opts.cmd === 'send-chat') await cmdSendChat(opts);
   else {
     writeError(`未知命令: ${opts.cmd}\n\n${HELP}`);
     process.exit(1);
