@@ -17,6 +17,8 @@
 - 🚀 **自动启动 Chrome** - 检测到未运行则自动启动独立的 Chrome 实例
 - ✅ **登录状态校验** - 抓取前自动验证登录状态，避免无效请求
 - 📄 **详情补抓** - 支持批量补抓职位 JD 正文，支持断点续传
+- 💬 **即时互动** - 新增消息未读读取、自动发送聊天消息功能
+- 📊 **可视化仪表盘** - 内置轻量级 Web 服务器，支持数据分析与图形化展示
 - 🎨 **跨平台支持** - macOS/Linux/Windows（需配置 Chrome 路径）
 
 ---
@@ -31,13 +33,30 @@ npm install -g @loong243/boss-scripts
 
 > ⚠️ **首次使用**: 首次启动会使用独立的 Chrome CDP Profile (`~/boss-chrome-profile`)。需要在这个独立浏览器里手动登录 Boss 直聘，后续会自动复用登录态。
 
+### 1. 抓取与分析
+
 ```bash
-# 全局安装后直接使用
+# 全局安装后抓取列表
 boss-scripts list --query "前端开发" --city "深圳"
 
 # 补抓职位详情
 boss-scripts detail --input ./output/boss_前端开发.json
+
+# 启动可视化仪表盘
+node server.js
 ```
+
+### 2. 消息与交互
+
+```bash
+# 查看未读消息预览
+boss-scripts chat-unread --limit 5
+
+# 向当前打开的聊天窗发送消息
+boss-scripts send-chat --message "您好，我对该岗位很感兴趣..."
+```
+
+---
 
 ## 使用方式
 
@@ -66,38 +85,21 @@ node boss.js list --query "前端开发" --city "深圳"
 node boss.js detail --input ./output/boss_前端开发.json
 ```
 
-### 3. 禁用自动启动
+### 3. 数据可视化
 
-如果需要手动控制 Chrome,可以禁用自动启动:
+项目内置了一个基于 Node.js 的轻量级服务器，用于展示和分析抓取到的数据：
 
 ```bash
-# 需要先手动启动 Chrome
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=$HOME/boss-chrome-profile
-
-# 然后运行脚本(禁用自动启动)
-node boss.js list --query "前端开发" --city "深圳" --no-auto-start
+# 启动仪表盘
+node server.js
 ```
+启动后访问 `http://localhost:3000` 即可查看：
+- **薪资分布分析**：直观展示不同岗位的薪资区间
+- **技能词云**：分析高频要求的技术栈
+- **区域热度**：查看职位分布最集中的区域
+- **快捷交互**：在仪表盘中直接触发 `jd-open` 或 `send-chat`
 
-## 功能特性
-
-### ✅ 自动 CDP 连接检查
-- 启动前自动检查 Chrome CDP 连接
-- 如果未连接且启用自动启动,则自动启动 Chrome
-- 如果禁用自动启动,则提示手动启动命令
-
-### ✅ 登录状态验证
-- 自动检查 Boss 直聘登录状态
-- 未登录时给出清晰的提示和登录指引
-- 可通过 `--skip-login-check` 参数跳过检查(不推荐)
-
-### ✅ 自动打开目标 URL
-- 如果没有找到 Boss 直聘的 Tab,自动打开搜索页面
-- 避免手动打开和导航到目标页面的麻烦
-
-### ✅ 专用 Chrome Profile
-- 使用独立的 Chrome Profile (`~/boss-chrome-profile`)
-- 保留登录状态和 Cookie
-- 不影响主浏览器的使用
+---
 
 ## 命令说明
 
@@ -124,21 +126,6 @@ boss-scripts list [选项]
 - `--no-auto-start` - 禁用自动启动 Chrome
 - `--skip-login-check` - 跳过登录状态检查(不推荐)
 
-**示例:**
-```bash
-# 抓取深圳的 AI 相关职位,抓 5 页
-boss-scripts list --query "AI应用" --city "深圳" --page 5
-
-# 抓取 100 条前端开发职位,慢速模式
-boss-scripts list --query "前端开发" --count 100 --slow
-
-# 跳过登录检查(不推荐)
-boss-scripts list --query "测试" --skip-login-check
-
-# 指定输出文件
-boss-scripts list --query "React" --output ./jobs/react.json
-```
-
 ### detail 命令 - 补抓职位详情
 
 ```bash
@@ -149,6 +136,27 @@ boss-scripts detail [选项]
 
 **必填参数:**
 - `--input <路径>` - list 输出的 JSON 文件
+
+### jd-open 命令 - 提取单个职位 JD
+
+```bash
+boss-scripts jd-open --url "职位详情页链接"
+```
+打开指定链接并提取职位描述，保持标签页处于打开状态以便后续交互。
+
+### chat-unread 命令 - 读取未读消息
+
+```bash
+boss-scripts chat-unread --limit 10
+```
+读取并显示消息页「未读」Tab 中的 Boss 消息预览。
+
+### send-chat 命令 - 发送聊天消息
+
+```bash
+boss-scripts send-chat --message "消息内容"
+```
+在已打开的聊天窗口中自动输入并发送指定消息。配合 `jd-open` 或手动打开页面使用。
 
 **可选参数:**
 - `--output <路径>` - 输出文件,默认覆盖 input
